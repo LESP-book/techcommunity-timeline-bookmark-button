@@ -1,28 +1,33 @@
 // javascripts/discourse/components/topic-timeline-bookmark.js
 import Component from "@glimmer/component";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
 import { tracked } from "@glimmer/tracking";
 import I18n from "I18n";
-import { subscribe } from "discourse/lib/pub-sub";
+import { subscribe, unsubscribe } from "discourse/lib/pub-sub";
+import { getOwner } from "discourse-common/lib/get-owner";
 
 export default class TopicTimelineBookmark extends Component {
-  @service currentUser;
-  @service store;
-
   @tracked topic = null;
 
   constructor() {
     super(...arguments);
-    this.topic = this.args.outletArgs.topic;
+    // outletArgs 在组件内通过 this.args.outletArgs 可用（topic timeline 会把 topic 放进去）
+    this.topic = this.args.outletArgs?.topic || null;
 
-    // 监听书签变更事件
+    // 订阅全局事件以在书签变更时刷新
     subscribe("bookmarks:changed", this, this._onBookmarksChanged);
   }
 
-  _onBookmarksChanged() {
-    this.topic = this.args.outletArgs.topic;
+  willDestroy() {
+    super.willDestroy?.(...arguments);
+    // 取消订阅，防止内存泄漏
+    unsubscribe("bookmarks:changed", this, this._onBookmarksChanged);
   }
+
+  _onBookmarksChanged = () => {
+    // 重新读取 outletArgs.topic（它会在外部数据变更时更新）
+    this.topic = this.args.outletArgs?.topic || this.topic;
+  };
 
   get bookmarkedPosts() {
     return this.topic?.bookmarkCount || 0;
@@ -50,7 +55,7 @@ export default class TopicTimelineBookmark extends Component {
   }
 
   get tooltip() {
-    const { topic } = this;
+    const topic = this.topic;
     const count = this.bookmarkedPosts;
     if (!topic) return I18n.t("bookmarked.help.bookmark");
 
@@ -69,7 +74,25 @@ export default class TopicTimelineBookmark extends Component {
 
   @action
   toggleBookmark() {
-    const topicController = this.store.lookup("controller:topic");
-    topicController.send("toggleBookmark");
+    // 使用 getOwner 找到 topic controller 并触发 toggleBookmark action，
+    // 这是对原先 getOwner(this).lookup('controller:topic') 的直接、兼容写法
+    const owner = getOwner(this);
+    try {
+      const topicController = owner.lookup("controller:topic");
+      if (topicController && topicController.send) {
+        topicController.send("toggleBookmark");
+        return;
+      }
+    } catch (e) {
+      // fallback: 尝试通过全局事件触发（如果 controller 不可用）
+    }
+
+    // 作为最后的 fallback，可以触发一个公共事件让 core 去处理（core 通常监听 topic 的相关 action）
+    // 这里我们触发一个自定义事件，core 或其它代码可以订阅
+    const ev = new CustomEvent("toggleBookmark:requested", {
+      bubbles: true,
+      detail: { topicId: this.topic?.id },
+    });
+    document.dispatchEvent(ev);
   }
 }
