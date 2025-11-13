@@ -2,11 +2,13 @@
 import Component from "@glimmer/component";
 import { action } from "@ember/object";
 import { tracked } from "@glimmer/tracking";
+import { service } from "@ember/service";
 import { getOwner } from "@ember/owner";
+import { bind } from "discourse/lib/decorators";
 import I18n from "I18n";
-import { subscribe, unsubscribe } from "discourse/lib/pub-sub";
 
 export default class TopicTimelineBookmark extends Component {
+  @service appEvents;
   @tracked topic = null;
 
   /**
@@ -29,19 +31,20 @@ export default class TopicTimelineBookmark extends Component {
     this.topic = this.args.model || this.args.topic || null;
 
     // 订阅全局事件以在书签变更时刷新
-    subscribe("bookmarks:changed", this, this._onBookmarksChanged);
+    this.appEvents.on("bookmarks:changed", this, this._onBookmarksChanged);
   }
 
   willDestroy() {
     super.willDestroy?.(...arguments);
     // 取消订阅，防止内存泄漏
-    unsubscribe("bookmarks:changed", this, this._onBookmarksChanged);
+    this.appEvents.off("bookmarks:changed", this, this._onBookmarksChanged);
   }
 
-  _onBookmarksChanged = () => {
+  @bind
+  _onBookmarksChanged() {
     // 重新读取 topic（它会在外部数据变更时更新）
     this.topic = this.args.model || this.args.topic || this.topic;
-  };
+  }
 
   get bookmarkedPosts() {
     return this.topic?.bookmarkCount || 0;
