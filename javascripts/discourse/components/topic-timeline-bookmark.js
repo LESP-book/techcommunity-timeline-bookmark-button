@@ -5,7 +5,7 @@ import { tracked } from "@glimmer/tracking";
 import { service } from "@ember/service";
 import { getOwner } from "@ember/owner";
 import { bind } from "discourse/lib/decorators";
-import I18n from "I18n";
+import { i18n } from "discourse-i18n";
 
 export default class TopicTimelineBookmark extends Component {
   @service appEvents;
@@ -26,10 +26,6 @@ export default class TopicTimelineBookmark extends Component {
 
   constructor() {
     super(...arguments);
-    // 根据新的 Glimmer post stream 系统，outletArgs 包含 model 和 fullscreen
-    // model 就是 topic 对象
-    this.topic = this.args.model || this.args.topic || null;
-
     // 订阅全局事件以在书签变更时刷新
     this.appEvents.on("bookmarks:changed", this, this._onBookmarksChanged);
   }
@@ -40,10 +36,20 @@ export default class TopicTimelineBookmark extends Component {
     this.appEvents.off("bookmarks:changed", this, this._onBookmarksChanged);
   }
 
+  /**
+   * 获取 topic 对象，优先使用 args.model（新系统），然后是 args.topic（向后兼容）
+   */
+  get topic() {
+    return this.args.model || this.args.topic;
+  }
+
   @bind
   _onBookmarksChanged() {
-    // 重新读取 topic（它会在外部数据变更时更新）
-    this.topic = this.args.model || this.args.topic || this.topic;
+    // 重新触发 topic 的 bookmarksWereChanged 属性更新，确保 UI 刷新
+    const topic = this.topic;
+    if (topic && typeof topic.incrementProperty === "function") {
+      topic.incrementProperty("bookmarksWereChanged");
+    }
   }
 
   get bookmarkedPosts() {
@@ -66,27 +72,27 @@ export default class TopicTimelineBookmark extends Component {
 
   get label() {
     const count = this.bookmarkedPosts;
-    if (count === 0) return I18n.t("bookmarked.title");
-    if (count === 1) return I18n.t("bookmarked.edit_bookmark");
-    return I18n.t("bookmarked.clear_bookmarks");
+    if (count === 0) return i18n("bookmarked.title");
+    if (count === 1) return i18n("bookmarked.edit_bookmark");
+    return i18n("bookmarked.clear_bookmarks");
   }
 
   get tooltip() {
     const topic = this.topic;
     const count = this.bookmarkedPosts;
-    if (!topic) return I18n.t("bookmarked.help.bookmark");
+    if (!topic) return i18n("bookmarked.help.bookmark");
 
-    if (count === 0) return I18n.t("bookmarked.help.bookmark");
+    if (count === 0) return i18n("bookmarked.help.bookmark");
     if (count === 1) {
       if (topic.bookmarks?.some((b) => b.for_topic)) {
-        return I18n.t("bookmarked.help.edit_bookmark_for_topic");
+        return i18n("bookmarked.help.edit_bookmark_for_topic");
       }
-      return I18n.t("bookmarked.help.edit_bookmark");
+      return i18n("bookmarked.help.edit_bookmark");
     }
     if (topic.bookmarks?.some((b) => b.reminder_at)) {
-      return I18n.t("bookmarked.help.unbookmark_with_reminder");
+      return i18n("bookmarked.help.unbookmark_with_reminder");
     }
-    return I18n.t("bookmarked.help.unbookmark");
+    return i18n("bookmarked.help.unbookmark");
   }
 
   @action
