@@ -26,6 +26,10 @@ export default class TopicTimelineBookmark extends Component {
 
   constructor() {
     super(...arguments);
+    // 根据新的 Glimmer post stream 系统，outletArgs 包含 model 和 fullscreen
+    // model 就是 topic 对象
+    this.topic = this.args.model || this.args.topic || null;
+
     // 订阅全局事件以在书签变更时刷新
     this.appEvents.on("bookmarks:changed", this, this._onBookmarksChanged);
   }
@@ -36,20 +40,10 @@ export default class TopicTimelineBookmark extends Component {
     this.appEvents.off("bookmarks:changed", this, this._onBookmarksChanged);
   }
 
-  /**
-   * 获取 topic 对象，优先使用 args.model（新系统），然后是 args.topic（向后兼容）
-   */
-  get topic() {
-    return this.args.model || this.args.topic;
-  }
-
   @bind
   _onBookmarksChanged() {
-    // 重新触发 topic 的 bookmarksWereChanged 属性更新，确保 UI 刷新
-    const topic = this.topic;
-    if (topic && typeof topic.incrementProperty === "function") {
-      topic.incrementProperty("bookmarksWereChanged");
-    }
+    // 重新读取 topic（它会在外部数据变更时更新）
+    this.topic = this.args.model || this.args.topic || this.topic;
   }
 
   get bookmarkedPosts() {
