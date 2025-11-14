@@ -65,10 +65,11 @@ export default class TopicTimelineBookmark extends Component {
   }
 
   get label() {
+    // 返回翻译键，让 DButton 组件来处理翻译
     const count = this.bookmarkedPosts;
-    if (count === 0) return i18n("bookmarked.title");
-    if (count === 1) return i18n("bookmarked.edit_bookmark");
-    return i18n("bookmarked.clear_bookmarks");
+    if (count === 0) return "bookmarked.title";
+    if (count === 1) return "bookmarked.edit_bookmark";
+    return "bookmarked.clear_bookmarks";
   }
 
   get tooltip() {
